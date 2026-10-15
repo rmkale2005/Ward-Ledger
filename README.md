@@ -4,7 +4,7 @@ Temperature tracking and discharge management for a virus quarantine and treatme
 
 Ward Ledger is a working prototype built for a Technical Product Manager assessment. It covers the full patient path: daily temperature entry, doctor visits, discharge recommendation, discharge and room release, admissions, and mortality tracking.
 
-**Live demo:** `https://<your-username>.github.io/ward-ledger/`
+**Live demo:** https://rmkale2005.github.io/Ward-Ledger/
 
 ## Run it
 
