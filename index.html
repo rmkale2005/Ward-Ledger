@@ -1,0 +1,710 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Ward Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one ward-floor app. Sign-in, then a role shell (tabs + list views), patient detail as a full page, record forms as bottom sheets. */
+:root{
+  --bg:#EDF3F3; --surface:#FFFFFF; --surface2:#E3ECEC; --line:#C9D7D7;
+  --ink:#10252A; --muted:#506A6F; --accent:#0B6E78; --accent-ink:#FFFFFF; --accent-tint:#D3E9EB;
+  --fever:#B3301D; --fever-bg:#FBE5E0; --crit:#8E1B0D; --crit-ink:#FFFFFF;
+  --ok:#1B7448; --ok-bg:#DCF0E4; --warn:#8F5A00; --warn-bg:#FAEED0;
+  --f-display:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0B191C; --surface:#12262A; --surface2:#1A3237; --line:#2A474D;
+  --ink:#E3EEEF; --muted:#8CA8AD; --accent:#4FC3CF; --accent-ink:#06262A; --accent-tint:#173B41;
+  --fever:#FF8F7C; --fever-bg:#3B1A15; --crit:#FF6A52; --crit-ink:#2B0804;
+  --ok:#6FD79A; --ok-bg:#12301F; --warn:#F2C265; --warn-bg:#392B0D; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B191C; --surface:#12262A; --surface2:#1A3237; --line:#2A474D;
+  --ink:#E3EEEF; --muted:#8CA8AD; --accent:#4FC3CF; --accent-ink:#06262A; --accent-tint:#173B41;
+  --fever:#FF8F7C; --fever-bg:#3B1A15; --crit:#FF6A52; --crit-ink:#2B0804;
+  --ok:#6FD79A; --ok-bg:#12301F; --warn:#F2C265; --warn-bg:#392B0D; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-body);
+  padding-block:0 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(24px,4vw,30px);line-height:1.15;font-weight:600;letter-spacing:-.02em}
+h2{font-size:18px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.dim{color:var(--muted)}
+.small{font-size:13px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 16px;margin-block:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;border-top:3px solid var(--accent)}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:600;font-size:18px}
+.foot{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.brand small{display:block;font:400 12px var(--f-body);color:var(--muted);margin-top:-2px}
+.who{display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap}
+.who b{font-weight:600}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:18px;scrollbar-width:thin}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap;min-height:44px}
+.tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tab .n{font:600 11px var(--f-mono);background:var(--ok);color:var(--surface);border-radius:99px;padding:1px 6px;margin-left:6px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500;text-align:center}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--fever);border-color:var(--fever)}
+.btn.danger.solid{background:var(--crit);color:var(--crit-ink);border-color:var(--crit)}
+.btn.sm{min-height:36px;padding:4px 12px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.why{font-size:13px;color:var(--muted);margin-top:6px}
+
+/* chips */
+.chip{display:inline-block;font-size:12px;font-weight:500;padding:2px 9px;border-radius:99px;white-space:nowrap;background:var(--surface2);color:var(--muted)}
+.chip.fever{background:var(--fever-bg);color:var(--fever)}
+.chip.crit{background:var(--crit);color:var(--crit-ink)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.info{background:var(--accent-tint);color:var(--accent)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 14px;cursor:pointer;min-height:36px;font-size:14px}
+.fchip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.fchip b{font-family:var(--f-mono);font-weight:600;margin-left:4px}
+
+/* cards, rows */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.row{display:grid;grid-template-columns:52px minmax(0,1fr) 110px auto;gap:6px 14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.row.clickable{cursor:pointer}
+.room{font:600 15px var(--f-mono);background:var(--surface2);border-radius:6px;text-align:center;padding:8px 0}
+.row .nm{font-weight:600;overflow-wrap:anywhere}
+.row .sub{font-size:13px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.tv{font-size:20px;font-weight:600}
+.tv small{font-size:12px;font-weight:400;color:var(--muted);margin-left:2px}
+.tv.hot{color:var(--fever)}
+.search{width:100%;max-width:340px;min-height:40px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 12px}
+.card.unread{border-left:3px solid var(--accent)}
+.empty{padding:32px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+.bar{height:8px;background:var(--surface2);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:14px;margin-bottom:14px}
+.stat .big{font:600 30px var(--f-display);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat .big small{font-size:15px;color:var(--muted);font-weight:500}
+.stat .bar{margin-top:10px}
+.gauge{position:relative;height:12px;background:var(--surface2);border-radius:99px;margin:18px 0 6px}
+.gauge i{position:absolute;inset:0 auto 0 0;border-radius:99px}
+.gauge u{position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;background:var(--ink)}
+.alert{border-radius:10px;padding:12px 16px;margin-bottom:14px;background:var(--fever-bg);color:var(--fever);border:1px solid var(--fever);font-weight:500}
+.note{border-radius:10px;padding:10px 14px;background:var(--warn-bg);color:var(--warn);font-size:14px}
+
+/* bed map */
+.beds{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px}
+.bed{position:relative;min-height:50px;border-radius:8px;border:1.5px dashed var(--line);background:var(--surface);cursor:pointer;padding:4px 2px;text-align:center;line-height:1.15}
+.bed b{display:block;font:600 13px var(--f-mono)}
+.bed span{font:400 11px var(--f-mono);color:var(--muted)}
+.bed.taken{border-style:solid;border-color:var(--accent);background:var(--accent-tint)}
+.bed.seen{border-style:solid;border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.bed.seen span{color:var(--accent-ink)}
+.bed.ready{border-style:solid;border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.bed.pend{border-style:solid;border-color:var(--ok);background:var(--ok);color:var(--surface)}
+.bed.pend span{color:var(--surface)}
+.bed.free{opacity:.45;cursor:default;border-style:dotted}
+.bed i{position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--crit);box-shadow:0 0 0 2px var(--surface)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend em{width:14px;height:14px;border-radius:4px;display:inline-block;border:1.5px dashed var(--line)}
+.legend em.t{border:1.5px solid var(--accent);background:var(--accent-tint)}
+.legend em.s{border:1.5px solid var(--accent);background:var(--accent)}
+.legend em.r{border:1.5px solid var(--ok);background:var(--ok-bg)}
+.legend em.p{border:1.5px solid var(--ok);background:var(--ok)}
+.legend em.f{border:0;background:var(--crit);border-radius:50%;width:10px;height:10px}
+
+/* detail */
+.back{background:none;border:0;color:var(--accent);cursor:pointer;padding:6px 0;min-height:36px;font-weight:500}
+.pips{display:flex;gap:6px}
+.pips i{width:28px;height:10px;border-radius:99px;background:var(--surface2)}
+.pips i.on{background:var(--ok)}
+.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.check:first-of-type{border-top:0}
+.box{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;line-height:1}
+.box.y{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+svg.chart{width:100%;height:auto;display:block}
+.chart .g{stroke:var(--line);stroke-width:1}
+.chart .th{stroke:var(--fever);stroke-width:1.5;stroke-dasharray:5 4}
+.chart .ln{stroke:var(--accent);stroke-width:2;fill:none}
+.chart .ct{fill:var(--muted);font:11px var(--f-mono)}
+.chart .band{fill:var(--fever);opacity:.07}
+.chart .dp{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .dp.hot{fill:var(--fever)}
+
+/* sign in */
+.hero{padding:28px 0 22px;max-width:720px}
+.hero p{color:var(--muted);margin-top:10px;font-size:16px}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:14px;margin-block:22px}
+.role h2{margin-bottom:6px}
+.role ul{margin:10px 0 14px;padding-left:18px;color:var(--muted);font-size:14px}
+.role select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 10px;margin-bottom:10px}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;counter-reset:s;padding:0;list-style:none;margin:12px 0 0}
+.flow li{counter-increment:s;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:14px}
+.flow li::before{content:"Step " counter(s);display:block;font:600 12px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.flow b{display:block;margin-bottom:2px}
+details.rules{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+details.rules summary{cursor:pointer;font-weight:600}
+details.rules ul{color:var(--muted);font-size:14px;padding-left:18px}
+
+/* login */
+.login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:32px 0}
+.loginbox{max-width:440px;width:100%;margin:0 auto;padding:24px}
+.rgrp{border:0;padding:0;margin:16px 0 0;display:grid;gap:8px}
+.rpick{display:block;cursor:pointer}
+.rpick input{position:absolute;opacity:0;pointer-events:none}
+.rpick span{display:flex;flex-direction:column;min-height:44px;justify-content:center;padding:8px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.rpick small{color:var(--muted);font-size:13px}
+.rpick input:checked+span{border-color:var(--accent);background:var(--accent-tint);box-shadow:inset 0 0 0 1px var(--accent)}
+.rpick input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* forms / modal */
+.modal-back{position:fixed;inset:0;z-index:30;background:rgba(6,18,21,.6);display:flex;align-items:flex-end;justify-content:center;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+.sheet{width:100%;max-width:500px;max-height:92vh;overflow-y:auto;background:var(--surface);border-radius:14px 14px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px))}
+@media(min-width:640px){.modal-back{align-items:center}.sheet{border-radius:14px}}
+.sheet h2{margin-bottom:4px}
+.field{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.field label{font-size:13px;font-weight:600}
+.field input,.field select,.field textarea{min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 12px;width:100%}
+.field textarea{min-height:84px;resize:vertical}
+.tempin{font:600 34px var(--f-mono)!important;text-align:center}
+.err{color:var(--fever);font-size:14px;margin-top:10px;font-weight:500}
+.warns{margin:12px 0 0;padding:10px 12px 10px 30px;background:var(--warn-bg);color:var(--warn);border-radius:8px;font-size:14px}
+.btns{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.btns .btn{flex:1 1 140px}
+.ck{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px}
+.ck input{width:20px;height:20px;margin-top:2px;flex:none}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:14px;max-width:calc(100vw - 32px)}
+.ni{border-top:1px solid var(--line);padding:10px 0}
+.ni:first-of-type{border-top:0}
+.ntc.unread{border-left:3px solid var(--accent)}
+.ntc.urgent{border-left:3px solid var(--crit)}
+.ntxt{margin-top:6px;overflow-wrap:anywhere;white-space:pre-wrap}
+.nmeta{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+.demo{margin-top:30px;padding:12px 16px;border:1px dashed var(--line);border-radius:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
+.demo div{display:flex;gap:8px;flex-wrap:wrap}
+
+@media(max-width:560px){
+  .row{grid-template-columns:44px minmax(0,1fr) auto}
+  .row .room{grid-row:1/3}
+  .row .rd{grid-column:2;grid-row:2}
+  .row .act{grid-column:3;grid-row:1/3}
+}
+@media (prefers-reduced-motion:no-preference){.btn,.fchip,.bed{transition:border-color .15s,background .15s}}
+</style>
+
+<div class="wrap"><div id="app"></div></div>
+<div id="modal"></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const BASE=new Date(2026,9,15), FEVER=38.0, CRIT=40.0, MIN=34.0, MAX=42.0, KEY='wardledger.v1', ROOMS=74;
+const NURSES=['Meera Iyer','Arjun Rao','Sana Qureshi'], DOCS=['Dr. Kavita Shah','Dr. Imran Khan'], ADMINS=['Rohan Desai'];
+const TREAT=['Supportive care and fluids','Antiviral protocol A','Antiviral protocol B','Oxygen support','Continue observation'];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const nowT=()=>{const x=new Date();return pad(x.getHours())+':'+pad(x.getMinutes());};
+const dateOf=d=>{const x=new Date(BASE);x.setDate(x.getDate()+d);return x;};
+const fmtD=(d,o)=>dateOf(d).toLocaleDateString('en-GB',o||{weekday:'short',day:'numeric',month:'short'});
+
+/* ---------- state ---------- */
+let S, mem=null;
+const ui={loginRole:'nurse',loginUser:null,role:null,user:null,tab:null,open:null,q:'',fl:{round:'todo',rounds:'ready',patients:'active',notes:'in'},modal:null,cr:false};
+const ROLE_PL={nurse:'Nurses',doctor:'Doctors',admin:'Admin desk'};
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function seed(){
+  const r=rng(20261015), pick=a=>a[Math.floor(r()*a.length)], hhmm=(a,b)=>pad(a+Math.floor(r()*(b-a)))+':'+pad(Math.floor(r()*60));
+  const F=['Aarav','Diya','Vihaan','Anaya','Kabir','Isha','Reyansh','Myra','Arnav','Saanvi','Dev','Tara','Rohit','Neha','Aditya','Pooja','Karan','Sneha','Manav','Riya','Nikhil','Ananya','Yash','Kiara','Siddharth','Meghna','Harsh','Lata','Imran','Farah','Joseph','Maria','Gurpreet','Simran','Vikram','Divya','Omkar','Shreya','Faisal','Nandini'];
+  const L=['Patil','Kulkarni','Mehta','Sharma','Nair','Pillai','Deshmukh','Joshi','Khan','Shaikh',"D'Souza",'Fernandes','Singh','Gill','Reddy','Menon','Bhatt','Jain','Gupta','Verma','Kapoor','Chavan','More','Naik','Rane'];
+  const P=[];
+  for(let i=0;i<ROOMS;i++){
+    let a,fd,crit=false,elig=false;
+    if(i%12===0){elig=true;a=7+Math.floor(r()*4);fd=a-3-Math.floor(r()*2);}
+    else if(i%7===3){crit=true;a=3+Math.floor(r()*6);fd=a+3;}
+    else{a=1+Math.floor(r()*10);fd=Math.max(1,a-Math.floor(r()*3));}
+    const pend=(i===0||i===12);
+    const p={id:'P-'+(1001+i),name:F[i%40]+' '+L[(i*7+3)%25],age:18+Math.floor(r()*60),sex:r()<.5?'F':'M',room:i+1,adm:-a,status:pend?'pending_discharge':'active',readings:[],visits:[]};
+    for(let k=0;k<=a;k++){
+      const d=-a+k, today=(k===a), feverDay=k<fd;
+      const hasR=pend?true:(today?r()<.55:!(k===a-1&&r()<.12));
+      if(hasR){const t=feverDay?(crit?39.2+r()*1.6:38.2+r()*1.5):36.4+r()*.9;p.readings.push({d,t:hhmm(6,10),temp:Math.round(t*10)/10,by:pick(NURSES)});}
+      const hasV=today?(hasR&&(pend||r()<.5)):(hasR&&r()<.95);
+      if(hasV)p.visits.push({d,t:hhmm(10,14),by:pick(DOCS),treatment:feverDay?pick(TREAT.slice(0,4)):'Continue observation',note:feverDay?'Fever persists. Plan unchanged.':'Afebrile. Monitoring.'});
+    }
+    if(pend)p.rec={by:'Dr. Kavita Shah',d:0,t:'11:05',note:'Fever-free for 3 or more days. Cleared for discharge.'};
+    P.push(p);
+  }
+  const notes=[
+    {id:'N-1',pid:'P-1004',from:'Meera Iyer',fromRole:'nurse',to:'doctor',d:0,t:'08:25',text:'Patient reports breathlessness since early morning. Please review soon.',urgent:true,read:false},
+    {id:'N-2',pid:'P-1009',from:'Dr. Kavita Shah',fromRole:'doctor',to:'nurse',d:0,t:'09:10',text:'Please re-measure after 15 minutes of rest. Yesterday\'s reading looked low.',urgent:false,read:false},
+    {id:'N-3',pid:'P-1001',from:'Dr. Kavita Shah',fromRole:'doctor',to:'admin',d:0,t:'11:07',text:'Family has asked for a copy of the discharge summary.',urgent:false,read:false}];
+  return {v:1,day:0,patients:P,archive:{rec:52,dec:8},log:[],
+    notes,
+    queue:[{id:'W-1',name:'Prakash Rao',age:61,sex:'M',note:'Referred by district hospital. Fever for 3 days.',arr:{d:0,t:'08:40'}},
+           {id:'W-2',name:'Zoya Ansari',age:34,sex:'F',note:'Household contact of a confirmed case. Fever since yesterday.',arr:{d:0,t:'09:15'}},
+           {id:'W-3',name:'Mohan Pawar',age:72,sex:'M',note:'Walk-in. Fever and breathlessness.',arr:{d:0,t:'10:02'}}]};
+}
+function load(){try{const t=localStorage.getItem(KEY);if(t){const o=JSON.parse(t);if(o&&o.v===1)return o;}}catch(e){}return mem;}
+function save(){mem=S;try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+S=load()||seed(); if(!S.notes)S.notes=[]; mem=S; if(!S.notes)S.notes=[];
+
+/* ---------- domain ---------- */
+const byId=id=>S.patients.find(p=>p.id===id);
+const occupied=p=>p.status==='active'||p.status==='pending_discharge';
+const eff=(p,d)=>p.readings.find(x=>x.d===d&&!x.voided);
+const visitOn=(p,d)=>p.visits.find(x=>x.d===d);
+function lastBefore(p,d){let b=null;p.readings.forEach(x=>{if(!x.voided&&x.d<d&&(!b||x.d>b.d||(x.d===b.d&&x.t>b.t)))b=x;});return b;}
+function streak(p){let d=S.day;if(!eff(p,d))d--;let n=0;while(d>=p.adm){const x=eff(p,d);if(!x||x.temp>=FEVER)break;n++;d--;}return n;}
+const eligible=p=>p.status==='active'&&streak(p)>=3;
+function stats(){
+  const act=S.patients.filter(p=>p.status==='active'), occ=S.patients.filter(occupied);
+  const rec=S.archive.rec+S.patients.filter(p=>p.status==='discharged').length;
+  const dec=S.archive.dec+S.patients.filter(p=>p.status==='deceased').length;
+  const closed=rec+dec;
+  return {act,occ,free:ROOMS-occ.length,
+    tDone:act.filter(p=>eff(p,S.day)).length, vDone:act.filter(p=>visitOn(p,S.day)).length,
+    elig:act.filter(eligible), pend:S.patients.filter(p=>p.status==='pending_discharge'),
+    missed:act.filter(p=>S.day-1>=p.adm&&!eff(p,S.day-1)),
+    crit:act.filter(p=>{const r=eff(p,S.day);return r&&r.temp>=CRIT;}),
+    rec,dec,closed,mort:dec/closed,succ:rec/closed};
+}
+function addLog(msg){S.log.unshift({d:S.day,t:nowT(),who:ui.user,role:ui.role,msg});S.log=S.log.slice(0,150);}
+const roomLabel=p=>'Room '+p.room+' ('+p.name+')';
+const unread=()=>S.notes.filter(n=>n.to===ui.role&&!n.read).length;
+function noteChip(p){const u=S.notes.filter(n=>n.pid===p.id&&n.to===ui.role&&!n.read);return u.length?(u.some(n=>n.urgent)?chip('crit','Urgent note'):chip('info','Note')):'';}
+
+/* ---------- small view helpers ---------- */
+const chip=(c,t)=>'<span class="chip '+c+'">'+t+'</span>';
+const tv=t=>t==null?'<span class="dim">Not taken</span>':'<span class="mono tv'+(t>=FEVER?' hot':'')+'">'+t.toFixed(1)+'<small>°C</small></span>';
+function flags(p){
+  const r=eff(p,S.day);let f='';
+  if(p.status==='pending_discharge')f+=chip('ok','Discharge pending');
+  else if(eligible(p))f+=chip('ok','Eligible for discharge');
+  if(r&&r.temp>=CRIT)f+=chip('crit','Critical');else if(r&&r.temp>=FEVER)f+=chip('fever','Fever');
+  return f;
+}
+function filterQ(list){const q=ui.q.trim().toLowerCase();if(!q)return list;return list.filter(p=>p.name.toLowerCase().includes(q)||String(p.room)===q||p.id.toLowerCase().includes(q));}
+function filters(view,opts){
+  return '<div class="filters">'+opts.map(o=>'<button class="fchip" data-a="filter" data-v="'+view+'" data-f="'+o[0]+'" aria-pressed="'+(ui.fl[view]===o[0])+'">'+o[1]+'<b>'+o[2]+'</b></button>').join('')+'</div>';
+}
+function searchBox(){return '<input id="q" class="search" type="search" placeholder="Search name or room number" value="'+esc(ui.q)+'" aria-label="Search patients">';}
+
+/* ---------- views ---------- */
+function vSignIn(){
+  const NAMES={nurse:NURSES,doctor:DOCS,admin:ADMINS};
+  const INFO={nurse:['Nurse','Record daily temperatures'],doctor:['Doctor','Visit patients, recommend discharge'],admin:['Admin','Admissions, discharges, outcomes']};
+  const r=ui.loginRole;
+  if(!NAMES[r].includes(ui.loginUser))ui.loginUser=NAMES[r][0];
+  const roles=Object.keys(INFO).map(k=>'<label class="rpick"><input type="radio" name="lrole" value="'+k+'"'+(k===r?' checked':'')+'><span><b>'+INFO[k][0]+'</b><small>'+INFO[k][1]+'</small></span></label>').join('');
+  const names=NAMES[r].map(n=>'<option'+(n===ui.loginUser?' selected':'')+'>'+esc(n)+'</option>').join('');
+  return '<main class="login"><div class="brand" style="justify-content:center;margin-bottom:18px">'+logo()+'<div>Ward Ledger<small>Quarantine and treatment centre</small></div></div>'+
+  '<form class="card loginbox" data-form="login" novalidate><h1>Staff sign-in</h1><p class="dim small" style="margin:4px 0 0">Choose your role to open your dashboard.</p>'+
+   '<fieldset class="rgrp"><legend class="sr">Role</legend>'+roles+'</fieldset>'+
+   '<div class="field"><label for="lname">Signing in as</label><select id="lname">'+names+'</select></div>'+
+   '<button type="submit" class="btn primary" style="width:100%;margin-top:18px">Sign in as '+INFO[r][0].toLowerCase()+'</button>'+
+   '<p class="small dim" style="margin:12px 0 0;text-align:center">Demo build: no password. Sessions end after 15 minutes idle in production.</p></form>'+
+  '<details class="rules" style="max-width:440px;margin:18px auto 0"><summary>About this prototype</summary><ul>'+
+   '<li>Opens with 74 occupied rooms, a waiting list and a day already under way.</li>'+
+   '<li>Fever means 38.0 °C or higher. Discharge needs 3 consecutive fever-free days with a reading each day.</li>'+
+   '<li>Only nurses record temperatures. Only doctors record visits, recommend discharge or record a death. Only admins complete discharges and admit.</li>'+
+   '<li>Admission is blocked while all 74 rooms are occupied.</li></ul></details>'+
+  '<div class="foot" style="justify-content:center;text-align:center"><span>Ward Ledger · Prototype v1.0 · Demo data kept in this browser only.</span></div></main>';
+}
+function logo(){return '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="11" height="11" rx="3" fill="var(--accent)"/><rect x="14" y="1" width="11" height="11" rx="3" fill="var(--surface2)" stroke="var(--line)"/><rect x="1" y="14" width="11" height="11" rx="3" fill="var(--surface2)" stroke="var(--line)"/><rect x="14" y="14" width="11" height="11" rx="3" fill="var(--crit)"/></svg>';}
+const TABS={nurse:[['round','Today\'s round'],['notes','Notes']],doctor:[['rounds','Rounds'],['notes','Notes'],['overview','Overview'],['patients','All patients']],admin:[['overview','Overview'],['discharges','Discharges'],['admissions','Admissions'],['notes','Notes'],['patients','Patients'],['activity','Activity']]};
+function shell(inner){
+  const st=stats();
+  const tabs=TABS[ui.role].map(t=>'<button class="tab" data-a="tab" data-tab="'+t[0]+'"'+(ui.tab===t[0]&&!ui.open?' aria-current="page"':'')+'>'+t[1]+(t[0]==='discharges'&&st.pend.length?'<span class="n">'+st.pend.length+'</span>':'')+(t[0]==='notes'&&unread()?'<span class="n" style="background:var(--accent);color:var(--accent-ink)">'+unread()+'</span>':'')+'</button>').join('');
+  return '<div class="top"><div class="brand">'+logo()+'<div>Ward Ledger<small>'+fmtD(S.day,{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</small></div></div>'+
+   '<div class="who"><span><b>'+esc(ui.user)+'</b> · '+ui.role+'</span><button class="btn sm" data-a="signout">Sign out</button></div></div>'+
+   '<nav class="tabs" aria-label="Sections">'+tabs+'</nav>'+inner+
+   '<div class="foot"><span>Ward Ledger · Prototype v1.0 · Signed in as '+esc(ui.user)+'</span><span>Rooms 1 to '+ROOMS+' · Fever threshold 38.0 °C · Discharge after 3 fever-free days</span></div>'+
+   '<div class="demo"><span>Prototype controls</span><div><button class="btn sm" data-a="advance">Start next day</button><button class="btn sm'+(ui.cr?' danger solid':'')+'" data-a="reset">'+(ui.cr?'Tap again to reset all data':'Reset demo data')+'</button></div></div>';
+}
+function view(){
+  switch(ui.tab){
+    case 'round':return vRound();
+    case 'rounds':return vRounds();
+    case 'overview':return vOverview();
+    case 'patients':return vPatients();
+    case 'discharges':return vDischarges();
+    case 'admissions':return vAdmissions();
+    case 'activity':return vActivity();
+    case 'notes':return vNotes();
+  }
+  return '';
+}
+function vNotes(){
+  const f=ui.fl.notes, inbox=S.notes.filter(n=>n.to===ui.role), sent=S.notes.filter(n=>n.from===ui.user), un=inbox.filter(n=>!n.read).length;
+  const list=(f==='sent'?sent:inbox).slice().sort((a,b)=>f==='sent'?0:((a.read?1:0)-(b.read?1:0)||(b.urgent?1:0)-(a.urgent?1:0)));
+  return '<div class="head"><div><h2>Notes</h2><p class="dim small">Short messages between nurses, doctors and the admin desk, tied to a patient. Send one from any patient page.</p></div>'+(f==='in'&&un?'<button class="btn sm" data-a="readall">Mark all as read</button>':'')+'</div>'+
+   filters('notes',[['in','Inbox',inbox.length],['sent','Sent',sent.length]])+
+   '<div class="stack">'+(list.length?list.map(n=>{
+     const p=byId(n.pid), mine=n.to===ui.role;
+     return '<div class="card ntc'+(n.urgent?' urgent':'')+(mine&&!n.read?' unread':'')+'"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:0"><b>'+(p?'Room '+p.room+' · '+esc(p.name):'Unknown patient')+'</b><div class="nmeta">'+(f==='sent'?'To '+ROLE_PL[n.to]:'From '+esc(n.from)+' ('+n.fromRole+')')+' · '+fmtD(n.d)+' '+n.t+(n.urgent?' '+chip('crit','Urgent'):'')+(mine&&!n.read?' '+chip('info','New'):'')+'</div></div><div style="display:flex;gap:8px">'+(p?'<button class="btn sm" data-a="open" data-id="'+p.id+'">Open patient</button>':'')+(mine&&!n.read?'<button class="btn sm primary" data-a="read" data-id="'+n.id+'">Mark as read</button>':'')+'</div></div><p class="ntxt">'+esc(n.text)+'</p></div>';
+   }).join(''):'<div class="empty">'+(f==='sent'?'You have not sent any notes yet. Open a patient and choose Send note.':'No notes for you.')+'</div>')+'</div>';
+}
+function vRound(){
+  const act=S.patients.filter(p=>p.status==='active'), todo=act.filter(p=>!eff(p,S.day)), done=act.filter(p=>eff(p,S.day));
+  const f=ui.fl.round, list=filterQ(f==='todo'?todo:f==='done'?done:act);
+  const pct=act.length?Math.round(done.length/act.length*100):0;
+  return '<div class="head"><div><h2>Today\'s round</h2><p class="dim small">One temperature per patient, once a day.</p></div>'+searchBox()+'</div>'+
+   '<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>'+done.length+' of '+act.length+' temperatures taken</b><span class="mono dim">'+pct+'%</span></div><div class="bar" style="margin-top:10px"><i style="width:'+pct+'%"></i></div></div>'+
+   filters('round',[['todo','To measure',todo.length],['done','Measured',done.length],['all','All',act.length]])+
+   '<div class="stack">'+(list.length?list.map(p=>{
+     const r=eff(p,S.day), miss=(S.day-1>=p.adm&&!eff(p,S.day-1));
+     return '<div class="row clickable" data-a="open" data-id="'+p.id+'"><div class="room">'+p.room+'</div><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+p.age+' '+p.sex+' · Day '+(S.day-p.adm+1)+(miss&&!r?' '+chip('warn','Missed yesterday'):'')+(r?flags(p):'')+noteChip(p)+'</div></div><div class="rd">'+tv(r?r.temp:null)+(r?'<div class="small dim">'+r.t+'</div>':'')+'</div><div class="act"><button class="btn sm '+(r?'':'primary')+'" data-a="modal" data-m="temp" data-id="'+p.id+'">'+(r?'Correct':'Record')+'</button></div></div>';
+   }).join(''):'<div class="empty">'+(f==='todo'&&!act.length?'No patients on the ward.':f==='todo'?'Everyone has been measured. Nice work.':'No patients match.')+'</div>')+'</div>';
+}
+function vRounds(){
+  const act=S.patients.filter(p=>p.status==='active');
+  const ready=act.filter(p=>eff(p,S.day)&&!visitOn(p,S.day)), wait=act.filter(p=>!eff(p,S.day)), seen=act.filter(p=>visitOn(p,S.day)), el=act.filter(eligible);
+  const f=ui.fl.rounds;let list=f==='ready'?ready:f==='wait'?wait:f==='seen'?seen:f==='elig'?el:act;
+  const sev=p=>{const r=eff(p,S.day);return !r?3:r.temp>=CRIT?0:r.temp>=FEVER?1:2;};
+  list=filterQ(list).slice().sort((a,b)=>sev(a)*100+a.room-(sev(b)*100+b.room));
+  return '<div class="head"><div><h2>Rounds</h2><p class="dim small">Visits unlock once the nurse has recorded today\'s temperature. Fevers come first.</p></div>'+searchBox()+'</div>'+
+   filters('rounds',[['ready','Ready to visit',ready.length],['wait','Waiting for temperature',wait.length],['seen','Visited',seen.length],['elig','Discharge-eligible',el.length],['all','All',act.length]])+
+   '<div class="stack">'+(list.length?list.map(p=>{
+     const r=eff(p,S.day), v=visitOn(p,S.day);
+     return '<div class="row clickable" data-a="open" data-id="'+p.id+'"><div class="room">'+p.room+'</div><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+p.age+' '+p.sex+' · Day '+(S.day-p.adm+1)+' · Fever-free '+streak(p)+'/3 '+flags(p)+noteChip(p)+(!r?chip('warn','Waiting for temperature'):'')+(v?chip('info','Visited '+v.t):'')+'</div></div><div class="rd">'+tv(r?r.temp:null)+'</div><div class="act"><button class="btn sm '+(r&&!v?'primary':'')+'" data-a="open" data-id="'+p.id+'">'+(r&&!v?'Visit':'Open')+'</button></div></div>';
+   }).join(''):'<div class="empty">Nothing in this list.</div>')+'</div>';
+}
+function bedClass(p){
+  if(!p)return 'free';
+  if(p.status==='pending_discharge')return 'pend';
+  if(eligible(p))return 'ready';
+  if(visitOn(p,S.day))return 'seen';
+  if(eff(p,S.day))return 'taken';
+  return '';
+}
+function vOverview(){
+  const st=stats(), occPct=Math.round(st.occ.length/ROOMS*100), mortPct=(st.mort*100), succPct=(st.succ*100);
+  const over=st.mort>0.15, watch=!over&&st.mort>=0.13;
+  const rooms={};st.occ.forEach(p=>rooms[p.room]=p);
+  let beds='';for(let n=1;n<=ROOMS;n++){const p=rooms[n],c=bedClass(p),r=p&&eff(p,S.day);
+    beds+= p?'<button class="bed '+c+'" data-a="open" data-id="'+p.id+'" aria-label="Room '+n+', '+esc(p.name)+'">'+(r&&r.temp>=FEVER?'<i></i>':'')+'<b>'+n+'</b><span>'+(r?r.temp.toFixed(1):'--')+'</span></button>'
+            :'<div class="bed free"><b>'+n+'</b><span>free</span></div>';}
+  const att=[['Temperatures not taken yet today',st.act.length-st.tDone,''],['Missed yesterday',st.missed.length,st.missed.length?'warn':''],['Critical readings today',st.crit.length,st.crit.length?'crit':''],['Eligible, waiting for a doctor',st.elig.length,st.elig.length?'ok':''],['Discharges pending with admin',st.pend.length,st.pend.length?'ok':''],['On the waiting list',S.queue.length,'']];
+  return '<div class="head"><div><h2>Overview</h2><p class="dim small">Live view of the ward and of treatment outcomes.</p></div></div>'+
+   (over?'<div class="alert">Mortality is '+mortPct.toFixed(1)+'%, above the 15% benchmark. Review treatment protocols.</div>':watch?'<div class="note" style="margin-bottom:14px">Mortality is '+mortPct.toFixed(1)+'%, close to the 15% limit.</div>':'')+
+   '<div class="stats">'+
+    '<div class="card stat"><div class="eyebrow">Rooms occupied</div><div class="big">'+st.occ.length+'<small> / '+ROOMS+'</small></div><div class="bar"><i style="width:'+occPct+'%"></i></div></div>'+
+    '<div class="card stat"><div class="eyebrow">Temperatures today</div><div class="big">'+st.tDone+'<small> / '+st.act.length+'</small></div><div class="bar"><i style="width:'+(st.act.length?st.tDone/st.act.length*100:0)+'%"></i></div></div>'+
+    '<div class="card stat"><div class="eyebrow">Doctor visits today</div><div class="big">'+st.vDone+'<small> / '+st.act.length+'</small></div><div class="bar"><i style="width:'+(st.act.length?st.vDone/st.act.length*100:0)+'%"></i></div></div>'+
+   '</div>'+
+   '<div class="grid2" style="margin-bottom:14px"><div class="card"><h3>Treatment outcomes</h3><p class="small dim">Closed cases: '+st.closed+' ('+st.rec+' recovered, '+st.dec+' died)</p>'+
+    '<div class="gauge" aria-hidden="true"><i style="width:'+Math.min(100,mortPct/30*100)+'%;background:'+(over?'var(--crit)':watch?'var(--warn)':'var(--ok)')+'"></i><u></u></div>'+
+    '<div style="display:flex;justify-content:space-between" class="small mono dim"><span>0%</span><span>15% limit</span><span>30%</span></div>'+
+    '<div style="display:flex;gap:28px;margin-top:14px;flex-wrap:wrap"><div><div class="eyebrow">Mortality</div><div class="mono tv'+(over?' hot':'')+'">'+mortPct.toFixed(1)+'<small>%</small></div></div><div><div class="eyebrow">Success rate</div><div class="mono tv'+(succPct<85?' hot':'')+'">'+succPct.toFixed(1)+'<small>% vs 85%</small></div></div></div></div>'+
+    '<div class="card"><h3>Needs attention</h3><div class="stack" style="margin-top:8px">'+att.map(a=>'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px"><span>'+a[0]+'</span><span class="chip '+(a[2]||'')+' mono">'+a[1]+'</span></div>').join('')+'</div></div></div>'+
+   '<div class="card"><div class="head" style="margin-bottom:12px"><h3>Room map</h3><span class="small dim">Tap a room to open the patient. Number under the room is today\'s temperature.</span></div><div class="beds">'+beds+'</div>'+
+    '<div class="legend"><span><em></em>Not measured</span><span><em class="t"></em>Measured</span><span><em class="s"></em>Visited</span><span><em class="r"></em>Discharge-eligible</span><span><em class="p"></em>Discharge pending</span><span><em class="f"></em>Fever today</span></div></div>';
+}
+function vPatients(){
+  const f=ui.fl.patients, cnt=s=>S.patients.filter(p=>p.status===s).length;
+  const list=filterQ(S.patients.filter(p=>f==='all'||(f==='active'?occupied(p):p.status===f))).slice().sort((a,b)=>a.room-b.room);
+  const stLabel={active:chip('info','In treatment'),pending_discharge:chip('ok','Discharge pending'),discharged:chip('','Discharged'),deceased:chip('crit','Deceased')};
+  return '<div class="head"><div><h2>Patients</h2><p class="dim small">Everyone admitted in this prototype session.</p></div>'+searchBox()+'</div>'+
+   filters('patients',[['active','In centre',S.patients.filter(occupied).length],['discharged','Discharged',cnt('discharged')],['deceased','Deceased',cnt('deceased')],['all','All',S.patients.length]])+
+   '<div class="card tablewrap"><table><thead><tr><th>Room</th><th>Patient</th><th>Admitted</th><th>Last reading</th><th>Status</th></tr></thead><tbody>'+
+   (list.length?list.map(p=>{const lr=eff(p,S.day)||lastBefore(p,S.day+1);return '<tr class="clickable" style="cursor:pointer" data-a="open" data-id="'+p.id+'"><td class="mono">'+(occupied(p)?p.room:'—')+'</td><td><b>'+esc(p.name)+'</b><div class="small dim">'+p.id+' · '+p.age+' '+p.sex+'</div></td><td>'+fmtD(p.adm)+'</td><td>'+(lr?'<span class="mono">'+lr.temp.toFixed(1)+' °C</span>':'—')+'</td><td>'+stLabel[p.status]+'</td></tr>';}).join(''):'<tr><td colspan="5" class="dim">No patients match.</td></tr>')+'</tbody></table></div>';
+}
+function vDischarges(){
+  const st=stats();
+  return '<div class="head"><div><h2>Discharges</h2><p class="dim small">Only patients recommended by a doctor can be discharged.</p></div></div>'+
+   '<h3 style="margin-bottom:10px">Ready to discharge ('+st.pend.length+')</h3><div class="stack">'+(st.pend.length?st.pend.map(p=>
+    '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><div><b>'+esc(p.name)+'</b> <span class="dim">· Room '+p.room+'</span><div class="small dim" style="margin-top:4px">Recommended by '+esc(p.rec.by)+' · '+fmtD(p.rec.d)+' '+p.rec.t+'</div><div class="small" style="margin-top:4px">'+esc(p.rec.note)+'</div></div><button class="btn primary" data-a="modal" data-m="discharge" data-id="'+p.id+'">Complete discharge</button></div></div>').join(''):'<div class="empty">No pending discharges.</div>')+'</div>'+
+   '<h3 style="margin:22px 0 10px">Fever-free, awaiting the doctor ('+st.elig.length+')</h3><div class="stack">'+(st.elig.length?st.elig.map(p=>
+    '<div class="row clickable" data-a="open" data-id="'+p.id+'"><div class="room">'+p.room+'</div><div><div class="nm">'+esc(p.name)+'</div><div class="sub">Fever-free '+streak(p)+' days '+chip('warn','Waiting for doctor')+'</div></div><div class="rd"></div><div class="act"><button class="btn sm" data-a="open" data-id="'+p.id+'">View</button></div></div>').join(''):'<div class="empty">None right now.</div>')+'</div>';
+}
+function vAdmissions(){
+  const st=stats();
+  const free=[];const used=new Set(st.occ.map(p=>p.room));for(let n=1;n<=ROOMS;n++)if(!used.has(n))free.push(n);
+  return '<div class="head"><div><h2>Admissions</h2><p class="dim small">'+(free.length?free.length+' room'+(free.length>1?'s':'')+' free.':'All 74 rooms are occupied. Admit after a discharge frees a room.')+'</p></div></div>'+
+   (free.length?'':'<div class="note" style="margin-bottom:14px">Admission is blocked until a room is released.</div>')+
+   '<h3 style="margin-bottom:10px">Waiting list ('+S.queue.length+')</h3><div class="stack">'+(S.queue.length?S.queue.map(w=>
+    '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><div style="min-width:0"><b>'+esc(w.name)+'</b> <span class="dim">· '+w.age+' '+w.sex+' · arrived '+w.arr.t+'</span><div class="small dim" style="margin-top:4px">'+esc(w.note)+'</div></div>'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="room-'+w.id+'" class="search" style="width:110px" aria-label="Room for '+esc(w.name)+'"'+(free.length?'':' disabled')+'>'+(free.length?free.map(n=>'<option value="'+n+'">Room '+n+'</option>').join(''):'<option>No room</option>')+'</select><button class="btn primary" data-a="admit" data-id="'+w.id+'"'+(free.length?'':' disabled')+'>Admit</button></div></div></div>').join(''):'<div class="empty">Waiting list is empty.</div>')+'</div>'+
+   '<form data-form="addq" class="card" style="margin-top:22px"><h3>Add to waiting list</h3><div class="grid2"><div class="field"><label for="qn">Full name</label><input id="qn" required autocomplete="off"></div><div class="field"><label for="qa">Age</label><input id="qa" type="number" min="0" max="120" required></div><div class="field"><label for="qs">Sex</label><select id="qs"><option>F</option><option>M</option></select></div></div><div class="field"><label for="qnote">Referral note</label><input id="qnote" autocomplete="off"></div><div class="btns"><button class="btn primary" type="submit" style="flex:0 0 auto">Add to list</button></div></form>';
+}
+function vActivity(){
+  return '<div class="head"><div><h2>Activity</h2><p class="dim small">Every change is logged with who made it.</p></div></div>'+
+   (S.log.length?'<div class="card tablewrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>'+S.log.map(l=>'<tr><td class="mono" style="white-space:nowrap">'+fmtD(l.d)+' '+l.t+'</td><td style="white-space:nowrap">'+esc(l.who)+' <span class="dim">('+l.role+')</span></td><td>'+esc(l.msg)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nothing yet. Record a temperature or a visit and it appears here.</div>');
+}
+
+/* patient detail */
+function chart(p){
+  const from=Math.max(p.adm,S.day-9), W=640,H=210,L=36,R=14,T=12,B=30, y0=35.5,y1=41;
+  const n=S.day-from+1, X=i=>L+(n===1?(W-L-R)/2:i*(W-L-R)/(n-1)), Y=t=>T+(y1-t)/(y1-y0)*(H-T-B);
+  let g='';[36,37,38,39,40,41].forEach(v=>{g+='<line class="'+(v===38?'th':'g')+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'"/><text class="ct" x="'+(L-6)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+v+'</text>';});
+  let path='',dots='',lab='',pen=false;
+  for(let i=0;i<n;i++){const d=from+i,r=eff(p,d);
+    lab+='<text class="ct" x="'+X(i)+'" y="'+(H-10)+'" text-anchor="middle">'+dateOf(d).getDate()+'</text>';
+    if(r){const t=Math.min(y1,Math.max(y0,r.temp));path+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(t).toFixed(1)+' ';pen=true;dots+='<circle class="dp'+(r.temp>=FEVER?' hot':'')+'" cx="'+X(i).toFixed(1)+'" cy="'+Y(t).toFixed(1)+'" r="5"><title>'+fmtD(d)+': '+r.temp.toFixed(1)+' °C</title></circle>';}
+    else pen=false;}
+  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Temperature by day, last '+n+' days"><rect class="band" x="'+L+'" y="'+T+'" width="'+(W-L-R)+'" height="'+(Y(38)-T)+'"/>'+g+'<path class="ln" d="'+path+'"/>'+dots+lab+'<text class="ct" x="'+(W-R)+'" y="'+(Y(38)-6)+'" text-anchor="end">fever 38.0</text></svg>';
+}
+function vDetail(id){
+  const p=byId(id);if(!p)return '';
+  const r=eff(p,S.day), v=visitOn(p,S.day), sk=streak(p), elig=eligible(p);
+  const stLabel={active:chip('info','In treatment'),pending_discharge:chip('ok','Discharge pending'),discharged:chip('','Discharged '+(p.closed!=null?fmtD(p.closed):'')),deceased:chip('crit','Deceased '+(p.closed!=null?fmtD(p.closed):''))};
+  // actions
+  let act='';
+  const dis=(label,cls,a,reason)=>'<div><button class="btn '+cls+'" '+(reason?'disabled':'data-a="modal" data-m="'+a+'" data-id="'+p.id+'"')+'>'+label+'</button>'+(reason?'<p class="why">'+reason+'</p>':'')+'</div>';
+  if(ui.role==='nurse'){
+    act=dis(r?'Correct today\'s reading':'Record temperature',r?'':'primary','temp',p.status!=='active'?'No readings needed. Patient is '+(p.status==='pending_discharge'?'awaiting discharge.':'no longer in treatment.'):'')+'<p class="why">Visits and discharge decisions are made by doctors.</p>';
+  }else if(ui.role==='doctor'){
+    const act1=p.status==='active';
+    act=dis(v?'Visit recorded':'Record visit',v?'':'primary','visit',!act1?'Patient is not in treatment.':!r?'Temperature not recorded yet today. The nurse must measure first.':v?'Visited at '+v.t+' by '+esc(v.by)+'.':'')+
+        dis('Recommend discharge','','recommend',!act1?'Patient is not in treatment.':!elig?'Needs 3 fever-free days in a row. Now at '+sk+' of 3.':'')+
+        dis('Record death','danger','death',occupied(p)?'':'Patient is not in treatment.');
+  }else{
+    act=p.status==='pending_discharge'?dis('Complete discharge','primary','discharge',''):'<p class="why">'+(p.status==='active'?'Discharge can be completed here once a doctor recommends it.':'No action needed.')+'</p>';
+  }
+  act+='<div><button class="btn" data-a="modal" data-m="note" data-id="'+p.id+'"'+(occupied(p)?'':' disabled')+'>Send note</button>'+(occupied(p)?'':'<p class="why">Notes can be sent only for patients in the centre.</p>')+'</div>';
+  const pn=S.notes.filter(n=>n.pid===p.id);
+  const notesCard='<div class="card" style="margin-bottom:14px"><h3 style="margin-bottom:6px">Notes ('+pn.length+')</h3>'+(pn.length?pn.map(n=>'<div class="ni"><div class="nmeta"><b style="color:var(--ink)">'+esc(n.from)+'</b> ('+n.fromRole+') to '+ROLE_PL[n.to].toLowerCase()+' · '+fmtD(n.d)+' '+n.t+(n.urgent?' '+chip('crit','Urgent'):'')+(n.to===ui.role&&!n.read?' '+chip('info','New'):'')+'</div><p class="ntxt">'+esc(n.text)+'</p>'+(n.to===ui.role&&!n.read?'<button class="btn sm" style="margin-top:8px" data-a="read" data-id="'+n.id+'">Mark as read</button>':'')+'</div>').join(''):'<p class="dim small">No notes for this patient yet.</p>')+'</div>';
+  const days=[];for(let d=S.day;d>=Math.max(p.adm,S.day-13);d--)days.push(d);
+  const hist=days.map(d=>{
+    const rs=p.readings.filter(x=>x.d===d).sort((a,b)=>a.t<b.t?1:-1), vs=p.visits.filter(x=>x.d===d);
+    return '<tr><td style="white-space:nowrap">'+fmtD(d)+(d===S.day?' <span class="chip info">today</span>':'')+'</td><td>'+(rs.length?rs.map(x=>'<div class="'+(x.voided?'dim':'')+'" style="'+(x.voided?'text-decoration:line-through':'')+'"><span class="mono">'+x.temp.toFixed(1)+' °C</span> <span class="small dim">'+x.t+' '+esc(x.by)+(x.voided?' · voided: '+esc(x.voidReason):'')+(x.reason?' · correction: '+esc(x.reason):'')+'</span></div>').join(''):'<span class="dim">No reading</span>')+'</td><td>'+(vs.length?vs.map(x=>'<div><b>'+esc(x.treatment)+'</b> <span class="small dim">'+x.t+' '+esc(x.by)+'</span>'+(x.note?'<div class="small">'+esc(x.note)+'</div>':'')+'</div>').join(''):'<span class="dim">No visit</span>')+'</td></tr>';
+  }).join('');
+  return '<button class="back" data-a="back">← Back to list</button>'+
+   '<div class="head" style="margin-top:6px"><div><p class="eyebrow">Room '+(occupied(p)?p.room:'—')+' · '+p.id+'</p><h1>'+esc(p.name)+'</h1><p class="dim" style="margin-top:6px">'+p.age+' years · '+(p.sex==='F'?'Female':'Male')+' · admitted '+fmtD(p.adm)+' · day '+(((p.closed!=null?p.closed:S.day))-p.adm+1)+' '+stLabel[p.status]+'</p></div></div>'+
+   (r&&r.temp>=CRIT&&occupied(p)?'<div class="alert">Critical temperature today: '+r.temp.toFixed(1)+' °C. Doctor review needed.</div>':'')+
+   '<div class="grid2" style="margin-bottom:14px">'+
+    '<div class="card"><h3>Today</h3><div style="margin-top:8px">'+
+      '<div class="check"><span class="box '+(r?'y':'')+'">'+(r?'✓':'')+'</span><div><b>Temperature</b><div>'+(r?'<span class="mono tv'+(r.temp>=FEVER?' hot':'')+'">'+r.temp.toFixed(1)+'<small>°C</small></span> <span class="small dim">'+r.t+' · '+esc(r.by)+'</span>':'<span class="dim">Not recorded yet</span>')+'</div></div></div>'+
+      '<div class="check"><span class="box '+(v?'y':'')+'">'+(v?'✓':'')+'</span><div><b>Doctor visit</b><div>'+(v?esc(v.treatment)+' <span class="small dim">'+v.t+' · '+esc(v.by)+'</span>':'<span class="dim">'+(r?'Ready to visit':'Locked until temperature is recorded')+'</span>')+'</div></div></div>'+
+      '<div class="check"><span class="box '+(p.status==='pending_discharge'?'y':'')+'">'+(p.status==='pending_discharge'?'✓':'')+'</span><div><b>Discharge</b><div class="dim">'+(p.status==='pending_discharge'?'Recommended by '+esc(p.rec.by)+' at '+p.rec.t:elig?'Eligible. Waiting for a doctor.':'Not eligible yet')+'</div></div></div>'+
+    '</div></div>'+
+    '<div class="card"><h3>Fever-free days</h3><div class="pips" style="margin:10px 0 6px" aria-label="'+Math.min(sk,3)+' of 3">'+[0,1,2].map(i=>'<i class="'+(sk>i?'on':'')+'"></i>').join('')+'</div><p class="small dim">'+(sk>=3?'3 or more fever-free days. Meets the discharge criterion.':sk+' of 3 days. A day counts when a reading exists and is below 38.0 °C. A missing reading resets the count.')+'</p>'+
+     '<div style="margin-top:14px" class="stack">'+act+'</div></div></div>'+
+   notesCard+
+   '<div class="card" style="margin-bottom:14px"><h3 style="margin-bottom:8px">Temperature, last '+Math.min(10,S.day-p.adm+1)+' days</h3>'+chart(p)+'</div>'+
+   '<div class="card tablewrap"><h3 style="margin-bottom:6px">History</h3><table><thead><tr><th>Day</th><th>Temperature</th><th>Doctor visit</th></tr></thead><tbody>'+hist+'</tbody></table></div>';
+}
+
+/* modals */
+function vModal(){
+  const m=ui.modal, p=m.id&&byId(m.id);
+  let body='';
+  if(m.type==='temp'){
+    const ex=eff(p,S.day), prev=ex?lastBefore(p,S.day):lastBefore(p,S.day+1);
+    body='<h2>'+(ex?'Correct temperature':'Record temperature')+'</h2><p class="dim">'+esc(roomLabel(p))+'</p>'+
+     (prev?'<p class="small dim" style="margin-top:6px">Previous reading: <span class="mono">'+prev.temp.toFixed(1)+' °C</span> on '+fmtD(prev.d)+'</p>':'')+
+     (ex?'<div class="note" style="margin-top:12px">Already measured today at '+ex.t+' by '+esc(ex.by)+' ('+ex.temp.toFixed(1)+' °C). Save only to correct a wrong entry. The earlier reading is voided and kept in history.</div><div class="field"><label for="reason">Reason for correction</label><select id="reason"><option value="">Choose a reason</option>'+['Typed the wrong value','Wrong patient','Thermometer fault','Re-measured after rest'].map(x=>'<option'+(m.reason===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>':'')+
+     '<div class="field"><label for="tempIn">Temperature in °C</label><input id="tempIn" class="tempin" inputmode="decimal" autocomplete="off" placeholder="36.8" value="'+esc(m.val||'')+'"></div>'+
+     (m.err?'<p class="err" role="alert">'+m.err+'</p>':'')+
+     (m.warns?'<ul class="warns" role="alert">'+m.warns.map(w=>'<li>'+w+'</li>').join('')+'</ul>':'')+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn primary" type="submit">'+(m.warns?'Confirm and save':'Save reading')+'</button></div>';
+  }else if(m.type==='visit'){
+    const last=p.visits[p.visits.length-1], el=eligible(p), r=eff(p,S.day);
+    body='<h2>Record visit</h2><p class="dim">'+esc(roomLabel(p))+' · today <span class="mono">'+(r?r.temp.toFixed(1):'—')+' °C</span></p>'+
+     '<div class="field"><label for="treat">Treatment</label><select id="treat">'+TREAT.map(x=>'<option'+((m.treat||(last&&last.treatment))===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>'+
+     '<div class="field"><label for="note">Notes</label><textarea id="note" placeholder="Observations, changes to plan">'+esc(m.note||'')+'</textarea></div>'+
+     (el?'<label class="ck"><input type="checkbox" id="rec"'+(m.rec?' checked':'')+'><span>Recommend discharge. Fever-free for '+streak(p)+' days. This notifies the admin desk.</span></label>':'')+
+     (m.err?'<p class="err" role="alert">'+m.err+'</p>':'')+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn primary" type="submit">Save visit</button></div>';
+  }else if(m.type==='recommend'){
+    body='<h2>Recommend discharge</h2><p class="dim">'+esc(roomLabel(p))+' · fever-free for '+streak(p)+' days</p>'+
+     '<div class="field"><label for="note">Note for the admin desk</label><textarea id="note">'+esc(m.note||'Fever-free for 3 or more days. Cleared for discharge.')+'</textarea></div>'+
+     (m.err?'<p class="err" role="alert">'+m.err+'</p>':'')+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn primary" type="submit">Send to admin</button></div>';
+  }else if(m.type==='death'){
+    body='<h2>Record death</h2><p class="dim">'+esc(roomLabel(p))+'</p><div class="note" style="margin-top:12px">This closes the case, releases the room and counts toward the centre mortality rate. It cannot be undone here.</div>'+
+     '<div class="field"><label for="note">Note</label><textarea id="note">'+esc(m.note||'')+'</textarea></div>'+
+     '<label class="ck"><input type="checkbox" id="cf"><span>I confirm this patient has died.</span></label>'+
+     (m.err?'<p class="err" role="alert">'+m.err+'</p>':'')+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn danger solid" type="submit">Record death</button></div>';
+  }else if(m.type==='note'){
+    const def=m.to||(ui.role==='doctor'?'nurse':'doctor');
+    body='<h2>Send note</h2><p class="dim">'+esc(roomLabel(p))+'</p>'+
+     '<div class="field"><label for="nto">To</label><select id="nto">'+['nurse','doctor','admin'].filter(r=>r!==ui.role).map(r=>'<option value="'+r+'"'+(def===r?' selected':'')+'>'+ROLE_PL[r]+'</option>').join('')+'</select></div>'+
+     '<div class="field"><label for="ntext">Message</label><textarea id="ntext" maxlength="280" placeholder="Keep it short and specific. Up to 280 characters.">'+esc(m.text||'')+'</textarea></div>'+
+     '<label class="ck"><input type="checkbox" id="nurg"'+(m.urg?' checked':'')+'><span>Mark urgent. It shows in red at the top of the recipient\'s notes.</span></label>'+
+     (m.err?'<p class="err" role="alert">'+m.err+'</p>':'')+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn primary" type="submit">Send note</button></div>';
+  }else if(m.type==='discharge'){
+    body='<h2>Complete discharge</h2><p class="dim">'+esc(roomLabel(p))+'</p><p style="margin-top:12px">Recommended by '+esc(p.rec.by)+'. Room '+p.room+' will be released for the next patient on the waiting list.</p>'+
+     '<div class="btns"><button class="btn" type="button" data-a="close">Cancel</button><button class="btn primary" type="submit">Discharge and free room</button></div>';
+
+  }
+  return '<div class="modal-back"><form class="sheet" role="dialog" aria-modal="true" data-form="'+m.type+'" novalidate>'+body+'</form></div>';
+}
+
+/* ---------- render ---------- */
+function render(){
+  const app=$('#app');
+  app.innerHTML=!ui.role?vSignIn():shell(ui.open?vDetail(ui.open):view());
+  $('#modal').innerHTML=ui.modal?vModal():'';
+  if(ui.modal){const f=$('#modal #tempIn,#modal #treat,#modal #note,#modal #ntext,#modal #cf');if(f)f.focus();}
+}
+function toast(t){const el=$('#toast');el.innerHTML='<div class="toast" role="status">'+esc(t)+'</div>';clearTimeout(toast.h);toast.h=setTimeout(()=>{el.innerHTML='';},3200);}
+function done(msg){save();ui.modal=null;render();toast(msg);}
+
+/* ---------- actions ---------- */
+function saveTemp(){
+  const m=ui.modal,p=byId(m.id);
+  if(ui.role!=='nurse')return;
+  if(p.status!=='active'){m.err='This patient no longer needs readings.';return render();}
+  const raw=$('#tempIn').value.replace(',','.').trim(), val=Math.round(parseFloat(raw)*10)/10, ex=eff(p,S.day), rs=$('#reason');
+  m.val=raw;m.reason=rs?rs.value:'';m.err=null;
+  if(!(val>=MIN&&val<=MAX)){m.err='Enter a value between 34.0 and 42.0 °C.';m.warns=null;return render();}
+  if(ex&&!m.reason){m.err='Choose a reason for the correction.';return render();}
+  const warns=[],prev=lastBefore(p,S.day+(ex?0:1));
+  if(val>=CRIT)warns.push('40.0 °C or higher. This is critical and the doctor will be alerted.');
+  if(val<35.5)warns.push('Below 35.5 °C. Check the thermometer and placement.');
+  if(prev&&S.day-prev.d<=2&&Math.abs(val-prev.temp)>=1.5)warns.push('Differs from the last reading ('+prev.temp.toFixed(1)+' °C) by '+Math.abs(val-prev.temp).toFixed(1)+' °C. Check the value.');
+  if(warns.length&&m.warnFor!==raw){m.warnFor=raw;m.warns=warns;return render();}
+  if(ex){ex.voided=true;ex.voidReason=m.reason;}
+  p.readings.push({d:S.day,t:nowT(),temp:val,by:ui.user,reason:ex?m.reason:undefined});
+  addLog((ex?'Corrected':'Recorded')+' '+val.toFixed(1)+' °C for '+roomLabel(p));
+  done(val>=CRIT?'Saved. Doctor alerted: critical temperature.':(ex?'Reading corrected.':'Temperature saved.'));
+}
+function doVisit(p,treat,note,rec){
+  p.visits.push({d:S.day,t:nowT(),by:ui.user,treatment:treat,note:note});
+  addLog('Visited '+roomLabel(p)+'. '+treat);
+  if(rec){p.status='pending_discharge';p.rec={by:ui.user,d:S.day,t:nowT(),note:note||'Fever-free for 3 or more days. Cleared for discharge.'};addLog('Recommended discharge for '+roomLabel(p));}
+}
+function saveVisit(){
+  const m=ui.modal,p=byId(m.id);if(ui.role!=='doctor')return;
+  m.treat=$('#treat').value;m.note=$('#note').value.trim();m.rec=$('#rec')?$('#rec').checked:false;m.err=null;
+  if(p.status!=='active')m.err='Patient is not in treatment.';
+  else if(!eff(p,S.day))m.err='Temperature has not been recorded today. The nurse must measure first.';
+  else if(visitOn(p,S.day))m.err='A visit is already recorded today.';
+  else if(m.rec&&!eligible(p))m.err='Discharge needs 3 fever-free days.';
+  if(m.err)return render();
+  doVisit(p,m.treat,m.note,m.rec);
+  done(m.rec?'Visit saved. Discharge sent to admin.':'Visit saved.');
+}
+function saveRec(){
+  const m=ui.modal,p=byId(m.id);if(ui.role!=='doctor')return;
+  m.note=$('#note').value.trim();
+  if(!eligible(p)){m.err='Not eligible. Needs 3 fever-free days in a row.';return render();}
+  p.status='pending_discharge';p.rec={by:ui.user,d:S.day,t:nowT(),note:m.note||'Cleared for discharge.'};
+  addLog('Recommended discharge for '+roomLabel(p));done('Sent to the admin discharge queue.');
+}
+function saveDeath(){
+  const m=ui.modal,p=byId(m.id);if(ui.role!=='doctor')return;
+  m.note=$('#note').value.trim();
+  if(!$('#cf').checked){m.err='Tick the box to confirm.';return render();}
+  const rm=roomLabel(p);p.status='deceased';p.closed=S.day;p.deathNote=m.note;
+  addLog('Recorded death of '+rm);
+  const st=stats();done('Recorded. Mortality is now '+(st.mort*100).toFixed(1)+'%.');
+}
+function saveNote(){
+  const m=ui.modal,p=byId(m.id);
+  m.to=$('#nto').value;m.text=$('#ntext').value.trim();m.urg=$('#nurg').checked;m.err=null;
+  if(m.to===ui.role||!ROLE_PL[m.to])m.err='Choose a different recipient.';
+  else if(!m.text)m.err='Write a message before sending.';
+  else if(m.text.length>280)m.err='Keep the note under 280 characters.';
+  else if(!occupied(p))m.err='This patient is no longer in the centre.';
+  if(m.err)return render();
+  S.notes.unshift({id:'N-'+Date.now(),pid:p.id,from:ui.user,fromRole:ui.role,to:m.to,d:S.day,t:nowT(),text:m.text,urgent:m.urg,read:false});
+  addLog('Sent '+(m.urg?'urgent ':'')+'note to '+ROLE_PL[m.to].toLowerCase()+' about '+roomLabel(p));
+  done('Note sent to '+ROLE_PL[m.to].toLowerCase()+'.');
+}
+function markRead(id){const n=S.notes.find(x=>x.id===id);if(n&&n.to===ui.role){n.read=true;save();render();}}
+function saveDischarge(){
+  const m=ui.modal,p=byId(m.id);if(ui.role!=='admin'||p.status!=='pending_discharge')return;
+  const rm=roomLabel(p);p.status='discharged';p.closed=S.day;addLog('Discharged '+rm+'. Room released');
+  ui.open=null;done('Discharged. Room '+p.room+' is free.');
+}
+function admit(id){
+  if(ui.role!=='admin')return;
+  const w=S.queue.find(x=>x.id===id),sel=$('#room-'+id);if(!w||!sel)return;
+  const room=parseInt(sel.value,10);
+  if(S.patients.some(p=>occupied(p)&&p.room===room)){toast('That room is taken.');return render();}
+  const n=1001+S.patients.length;
+  S.patients.push({id:'P-'+n,name:w.name,age:w.age,sex:w.sex,room,adm:S.day,status:'active',readings:[],visits:[]});
+  S.queue=S.queue.filter(x=>x.id!==id);
+  addLog('Admitted '+w.name+' to Room '+room);save();render();toast(w.name+' admitted to Room '+room+'.');
+}
+function addQ(){
+  if(ui.role!=='admin')return;
+  const n=$('#qn').value.trim(),a=parseInt($('#qa').value,10);
+  if(!n||!(a>=0&&a<=120)){toast('Enter a name and a valid age.');return;}
+  S.queue.push({id:'W-'+(Date.now()%100000),name:n,age:a,sex:$('#qs').value,note:$('#qnote').value.trim()||'No note.',arr:{d:S.day,t:nowT()}});
+  addLog('Added '+n+' to the waiting list');save();render();toast('Added to the waiting list.');
+}
+function closeModal(){ui.modal=null;render();}
+
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-a]');
+  if(!el){if(e.target.classList&&e.target.classList.contains('modal-back'))closeModal();return;}
+  if(el.disabled)return;
+  const a=el.dataset.a,id=el.dataset.id;
+  if(a!=='reset'&&ui.cr){ui.cr=false;}
+  switch(a){
+    case 'signout':signOut();break;
+    case 'tab':ui.tab=el.dataset.tab;ui.open=null;ui.q='';render();break;
+    case 'open':ui.open=id;ui.q='';render();window.scrollTo(0,0);break;
+    case 'back':ui.open=null;render();break;
+    case 'filter':ui.fl[el.dataset.v]=el.dataset.f;render();break;
+    case 'modal':ui.modal={type:el.dataset.m,id};render();break;
+    case 'close':closeModal();break;
+    case 'admit':admit(id);break;
+    case 'read':markRead(id);break;
+    case 'readall':S.notes.forEach(n=>{if(n.to===ui.role)n.read=true;});save();render();break;
+    case 'advance':S.day++;addLog('Started '+fmtD(S.day));save();render();toast('It is now '+fmtD(S.day,{weekday:'long',day:'numeric',month:'long'})+'. Today\'s temperatures reset.');break;
+    case 'reset':if(!ui.cr){ui.cr=true;render();}else{ui.cr=false;S=seed();mem=S;save();ui.open=null;ui.modal=null;render();toast('Demo data reset.');}break;
+  }
+});
+document.addEventListener('submit',e=>{
+  const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
+  switch(f.dataset.form){case 'login':signIn();break;case 'temp':saveTemp();break;case 'visit':saveVisit();break;case 'recommend':saveRec();break;case 'death':saveDeath();break;case 'discharge':saveDischarge();break;case 'note':saveNote();break;case 'addq':addQ();break;}
+});
+document.addEventListener('input',e=>{
+  if(e.target.id!=='q')return;
+  ui.q=e.target.value;const pos=e.target.selectionStart;render();
+  const q=$('#q');if(q){q.focus();try{q.setSelectionRange(pos,pos);}catch(x){}}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ui.modal)closeModal();});
+/* ---------- routing: always start at login, then go to the role's dashboard ---------- */
+const HOME={nurse:'round',doctor:'rounds',admin:'overview'};
+function signIn(){
+  const r=ui.loginRole, nm=$('#lname');
+  ui.role=r;ui.user=nm?nm.value:ui.loginUser;ui.fl.notes='in';ui.tab=HOME[r];ui.open=null;ui.q='';ui.modal=null;
+  history.pushState(null,'','#/'+r);render();window.scrollTo(0,0);
+}
+function signOut(){ui.role=null;ui.user=null;ui.open=null;ui.modal=null;history.pushState(null,'','#/login');render();window.scrollTo(0,0);}
+function route(){
+  const h=(location.hash.replace(/^#\/?/,'')||'login');
+  if(ui.role&&h===ui.role){render();return;}                 // already on own dashboard
+  if(ui.role&&h==='login'){ui.role=null;ui.user=null;ui.open=null;ui.modal=null;} // back button = sign out
+  else if(ui.role){history.replaceState(null,'','#/'+ui.role);}  // another role's URL: stay on own dashboard
+  else if(h!=='login'){history.replaceState(null,'','#/login');}   // not signed in: always login
+  render();
+}
+window.addEventListener('popstate',route);
+document.addEventListener('change',e=>{
+  if(e.target.name==='lrole'){ui.loginRole=e.target.value;ui.loginUser=null;render();const c=$('input[name=lrole]:checked');if(c)c.focus();}
+  else if(e.target.id==='lname'){ui.loginUser=e.target.value;}
+});
+history.replaceState(null,'','#/login'); // fresh load always opens on the login page
+render();
+})();
+</script>
+
+</body></html>
